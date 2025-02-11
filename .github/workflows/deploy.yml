@@ -1,0 +1,53 @@
+name: Deploy 3-Tier App
+
+on:
+  push:
+    branches:
+      - main  # Trigger deploy when pushing to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the code from the repository
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # Step 2: Log in to DockerHub using Docker credentials
+      - name: Log in to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Step 3: SSH into Remote Server and Deploy the Containers
+      - name: SSH into Remote Server and Deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}            # Use the server IP from secrets
+          username: ${{ secrets.SERVER_USER }}      # Use the server SSH username from secrets
+          password: ${{ secrets.SERVER_PASSWORD }}  # Use the server SSH password from secrets
+          script: |
+            echo "🚀 Connecting to the server..."
+
+            # Step 4: Pull Latest Docker Images from DockerHub
+            docker pull pritamcdac/backend:latest
+            docker pull pritamcdac/frontend:latest
+            docker pull pritamcdac/database:latest
+
+            # Step 5: Stop and Remove Old Containers (if any)
+            docker stop backend-container frontend-container database-container || true
+            docker rm backend-container frontend-container database-container || true
+
+            # Step 6: Run Database Container (MongoDB)
+            docker run -d --name database-container --network project_network -v mongo-data:/data/db pritamcdac/database:latest
+
+            # Step 7: Run Backend Container (Flask API)
+            docker run -d --name backend-container --network project_network -p 5000:5000 pritamcdac/backend:latest
+
+            # Step 8: Run Frontend Container (React)
+            docker run -d --name frontend-container --network project_network -p 3000:3000 pritamcdac/frontend:latest
+
+            # Step 9: Verify the Running Containers
+            docker ps
