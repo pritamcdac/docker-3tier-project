@@ -1,61 +1,53 @@
-name: Build, Push, and Deploy Docker Containers
+name: Build and Deploy to Docker Hub
 
 on:
   push:
     branches:
-      - main  # You can modify this to your desired branch
+      - main
 
 jobs:
-  build-deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the code from GitHub repository
+      # Checkout the repository to get all files
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Log in to Docker Hub
+      # Log in to Docker Hub using credentials stored as GitHub secrets
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      # Step 3: Build the backend image
+      # Build the backend Docker image
       - name: Build Backend Docker Image
-        run: docker build -t pritamdeshmukh/backend-image:latest ./backend-container
+        run: docker build -t pritamdeshmukh/backend-image:latest ./backend
 
-      # Step 4: Push the backend image to Docker Hub
+      # Push the backend Docker image to Docker Hub
       - name: Push Backend Docker Image
         run: docker push pritamdeshmukh/backend-image:latest
 
-      # Step 5: Build the frontend image
+      # Build the frontend Docker image
       - name: Build Frontend Docker Image
-        run: docker build -t pritamdeshmukh/frontend-image:latest ./frontend-container
+        run: docker build -t pritamdeshmukh/frontend-image:latest ./frontend
 
-      # Step 6: Push the frontend image to Docker Hub
+      # Push the frontend Docker image to Docker Hub
       - name: Push Frontend Docker Image
         run: docker push pritamdeshmukh/frontend-image:latest
 
-      # Step 7: Build MongoDB image (using official Mongo image in this case)
-      - name: Pull MongoDB Image
-        run: docker pull mongo:latest
+      # Build the database Docker image (assuming MongoDB Dockerfile is in the 'database' directory)
+      - name: Build Database Docker Image
+        run: docker build -t pritamdeshmukh/mongo:latest ./database
 
-      # Step 8: Push MongoDB image to Docker Hub
-      - name: Push MongoDB Image
-        run: docker tag mongo:latest pritamdeshmukh/mongo:latest
-      - name: Push MongoDB to Docker Hub
+      # Push the database Docker image to Docker Hub
+      - name: Push Database Docker Image
         run: docker push pritamdeshmukh/mongo:latest
 
-      # Step 9: Run the containers on your machine
-      - name: Deploy Backend Container
-        run: |
-          docker run -d --name backend-container -p 5030:5000 pritamdeshmukh/backend-image:latest
-          docker ps
+      # Optional: Run backend, frontend, and database containers (if you want to deploy them locally)
+      - name: Run Backend Container
+        run: docker run -d --name backend-container -p 5030:5000 pritamdeshmukh/backend-image:latest
 
-      - name: Deploy Frontend Container
-        run: |
-          docker run -d --name frontend-container -p 8080:80 pritamdeshmukh/frontend-image:latest
-          docker ps
+      - name: Run Frontend Container
+        run: docker run -d --name frontend-container -p 80:80 pritamdeshmukh/frontend-image:latest
 
-      - name: Deploy MongoDB Container
-        run: |
-          docker run -d --name mongodb-container -p 27017:27017 pritamdeshmukh/mongo:latest
-          docker ps
+      - name: Run Database Container
+        run: docker run -d --name mongodb-container -p 27017:27017 pritamdeshmukh/mongo:latest
