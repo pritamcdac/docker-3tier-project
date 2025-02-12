@@ -1,56 +1,82 @@
-name: Deploy 3-Tier App.
+name: Build, Push, and Deploy to Server
 
 on:
   push:
     branches:
-      - main  # Trigger deployment when pushing to main branch
+      - main
 
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the repository
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # Step 2: Log in to DockerHub
-      - name: Log in to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      # Step 3: SSH into Remote Server and Deploy Containers
-      - name: SSH into Remote Server and Deploy
+      # Build and push Backend Docker Image
+      - name: Build Backend Docker Image
+        run: docker build -t pritamdeshmukh/backend:latest ./backend
+
+      - name: Push Backend Docker Image
+        run: docker push pritamdeshmukh/backend:latest
+
+      # Build and push Frontend Docker Image
+      - name: Build Frontend Docker Image
+        run: docker build -t pritamdeshmukh/frontend:latest ./frontend
+
+      - name: Push Frontend Docker Image
+        run: docker push pritamdeshmukh/frontend:latest
+
+      # Build and push Database Docker Image
+      - name: Build Database Docker Image
+        run: docker build -t pritamdeshmukh/mongodb:latest ./database
+
+      - name: Push Database Docker Image
+        run: docker push pritamdeshmukh/mongodb:latest
+
+  deploy:
+    needs: build-and-push  # Run this job only after images are pushed
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH into Server and Deploy
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.SERVER_IP }}  # Use the Ubuntu server IP from GitHub Secrets
-          username: ${{ secrets.SERVER_USER }}  # Use the server SSH username
-          key: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}  # Use SSH private key instead of password
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
           script: |
-            echo "🚀 Connected to the server!"
-            
-            echo "🔄 Pulling latest Docker images..."
-            docker pull pritamcdac/backend:latest
-            docker pull pritamcdac/frontend:latest
-            docker pull pritamcdac/database:latest
+            echo "🚀 Connecting to server and deploying the application..."
 
-            echo "🛑 Stopping old containers (if running)..."
-            docker stop backend-container frontend-container database-container || true
-            docker rm backend-container frontend-container database-container || true
+            # Step 1: Stop and Remove existing containers
+            docker stop backend-container frontend-container mongodb-container || true
+            docker rm backend-container frontend-container mongodb-container || true
 
-            echo "🖧 Creating Docker network (if not exists)..."
-            docker network inspect project_network >/dev/null 2>&1 || docker network create project_network
+            # Step 2: Ensure no other process is using port 5000 (Backend) or 3000 (Frontend)
+            sudo fuser -k 5000/tcp || true
+            sudo fuser -k 3000/tcp || true
 
-            echo "💾 Starting Database (MongoDB) container..."
-            docker run -d --name database-container --network project_network -v mongo-data:/data/db pritamcdac/database:latest
+            # Step 3: Pull the latest Docker images
+            docker pull pritamdeshmukh/backend:latest
+            docker pull pritamdeshmukh/frontend:latest
+            docker pull pritamdeshmukh/mongodb:latest
 
-            echo "⚙️ Starting Backend (Flask) container..."
-            docker run -d --name backend-container --network project_network -p 5000:5000 pritamcdac/backend:latest
+            # Step 4: Create Docker network if not exists
+            docker network ls | grep project_network || docker network create project_network
 
-            echo "🎨 Starting Frontend (React) container..."
-            docker run -d --name frontend-container --network project_network -p 3000:3000 pritamcdac/frontend:latest
+            # Step 5: Run MongoDB Container
+            docker run -d --name mongodb-container --network project_network -v mongo-data:/data/db pritamdeshmukh/mongodb:latest
 
-            echo "✅ Deployment completed!"
+            # Step 6: Run Backend Container (Flask API)
+            docker run -d --name backend-container --network project_network -p 5000:5000 pritamdeshmukh/backend:latest
+
+            # Step 7: Run Frontend Container (React)
+            docker run -d --name frontend-container --network project_network -p 3000:3000 pritamdeshmukh/frontend:latest
+
+            # Step 8: Verify running containers
             docker ps
+
+            echo "✅ Deployment completed successfully!"
