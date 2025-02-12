@@ -30,42 +30,42 @@ jobs:
       - name: Push Frontend Docker Image
         run: docker push pritamdeshmukh/frontend:latest
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
+  # deploy:
+  #   runs-on: ubuntu-latest
+  #   needs: build
 
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+  #   steps:
+  #     - name: Checkout Repository
+  #       uses: actions/checkout@v3
 
-      - name: Log in to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+  #     - name: Log in to DockerHub
+  #       uses: docker/login-action@v2
+  #       with:
+  #         username: ${{ secrets.DOCKER_USERNAME }}
+  #         password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Deploy to Server
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          script: |
-            echo "🚀 Pulling latest images..."
-            docker pull pritamdeshmukh/backend:latest
-            docker pull pritamdeshmukh/frontend:latest
+  #     - name: Deploy to Server
+  #       uses: appleboy/ssh-action@master
+  #       with:
+  #         host: ${{ secrets.SERVER_IP }}
+  #         username: ${{ secrets.SERVER_USER }}
+  #         password: ${{ secrets.SERVER_PASSWORD }}
+  #         script: |
+  #           echo "🚀 Pulling latest images..."
+  #           docker pull pritamdeshmukh/backend:latest
+  #           docker pull pritamdeshmukh/frontend:latest
 
-            echo "⚙️ Stopping and removing old containers..."
-            docker stop backend-container frontend-container || true
-            docker rm backend-container frontend-container || true
+  #           echo "⚙️ Stopping and removing old containers..."
+  #           docker stop backend-container frontend-container || true
+  #           docker rm backend-container frontend-container || true
 
-            echo "🛠️ Running MongoDB container (unchanged)..."
-            docker start mongodb-container || docker run -d --name mongodb-container --network project_network -v mongo-data:/data/db mongo:latest
+  #           echo "🛠️ Running MongoDB container (unchanged)..."
+  #           docker start mongodb-container || docker run -d --name mongodb-container --network project_network -v mongo-data:/data/db mongo:latest
 
-            echo "🚀 Running Backend..."
-            docker run -d --name backend-container --network project_network -p 5000:5000 pritamdeshmukh/backend:latest
+  #           echo "🚀 Running Backend..."
+  #           docker run -d --name backend-container --network project_network -p 5000:5000 pritamdeshmukh/backend:latest
 
-            echo "🚀 Running Frontend..."
-            docker run -d --name frontend-container --network project_network -p 3000:3000 pritamdeshmukh/frontend:latest
+  #           echo "🚀 Running Frontend..."
+  #           docker run -d --name frontend-container --network project_network -p 3000:3000 pritamdeshmukh/frontend:latest
 
-            echo "✅ Deployment Completed!"
+  #           echo "✅ Deployment Completed!"
