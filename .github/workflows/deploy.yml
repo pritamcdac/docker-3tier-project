@@ -1,4 +1,4 @@
-name: Build, Push, and Deploy to Server
+name: Build and Deploy to Docker Hub
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,67 +16,56 @@ jobs:
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      # Build and push Backend Docker Image
+      # Build and push backend image
       - name: Build Backend Docker Image
         run: docker build -t pritamdeshmukh/backend:latest ./backend
 
       - name: Push Backend Docker Image
         run: docker push pritamdeshmukh/backend:latest
 
-      # Build and push Frontend Docker Image
+      # Build and push frontend image
       - name: Build Frontend Docker Image
         run: docker build -t pritamdeshmukh/frontend:latest ./frontend
 
       - name: Push Frontend Docker Image
         run: docker push pritamdeshmukh/frontend:latest
 
-      # Build and push Database Docker Image
-      - name: Build Database Docker Image
-        run: docker build -t pritamdeshmukh/mongodb:latest ./database
-
-      - name: Push Database Docker Image
-        run: docker push pritamdeshmukh/mongodb:latest
-
   deploy:
-    needs: build-and-push  # Run this job only after images are pushed
     runs-on: ubuntu-latest
+    needs: build
 
     steps:
-      - name: SSH into Server and Deploy
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Deploy to Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           script: |
-            echo "🚀 Connecting to server and deploying the application..."
-
-            # Step 1: Stop and Remove existing containers
-            docker stop backend-container frontend-container mongodb-container || true
-            docker rm backend-container frontend-container mongodb-container || true
-
-            # Step 2: Ensure no other process is using port 5000 (Backend) or 3000 (Frontend)
-            sudo fuser -k 5000/tcp || true
-            sudo fuser -k 3000/tcp || true
-
-            # Step 3: Pull the latest Docker images
+            echo "🚀 Pulling latest images..."
             docker pull pritamdeshmukh/backend:latest
             docker pull pritamdeshmukh/frontend:latest
-            docker pull pritamdeshmukh/mongodb:latest
 
-            # Step 4: Create Docker network if not exists
-            docker network ls | grep project_network || docker network create project_network
+            echo "⚙️ Stopping and removing old containers..."
+            docker stop backend-container frontend-container || true
+            docker rm backend-container frontend-container || true
 
-            # Step 5: Run MongoDB Container
-            docker run -d --name mongodb-container --network project_network -v mongo-data:/data/db pritamdeshmukh/mongodb:latest
+            echo "🛠️ Running MongoDB container (unchanged)..."
+            docker start mongodb-container || docker run -d --name mongodb-container --network project_network -v mongo-data:/data/db mongo:latest
 
-            # Step 6: Run Backend Container (Flask API)
+            echo "🚀 Running Backend..."
             docker run -d --name backend-container --network project_network -p 5000:5000 pritamdeshmukh/backend:latest
 
-            # Step 7: Run Frontend Container (React)
+            echo "🚀 Running Frontend..."
             docker run -d --name frontend-container --network project_network -p 3000:3000 pritamdeshmukh/frontend:latest
 
-            # Step 8: Verify running containers
-            docker ps
-
-            echo "✅ Deployment completed successfully!"
+            echo "✅ Deployment Completed!"
