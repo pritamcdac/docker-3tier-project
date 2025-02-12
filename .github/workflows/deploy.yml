@@ -34,14 +34,6 @@ jobs:
       - name: Push Frontend Docker Image
         run: docker push pritamdeshmukh/frontend-image:latest
 
-      # # Build the database Docker image (assuming MongoDB Dockerfile is in the 'database' directory)
-      # - name: Build Database Docker Image
-      #   run: docker build -t pritamdeshmukh/mongo:latest ./database
-
-      # # Push the database Docker image to Docker Hub
-      # - name: Push Database Docker Image
-      #   run: docker push pritamdeshmukh/mongo:latest
-
       # Optional: Run backend, frontend, and database containers (if you want to deploy them locally)
       - name: Run Backend Container
         run: docker run -d --name backend-container -p 5030:5000 pritamdeshmukh/backend-image:latest
