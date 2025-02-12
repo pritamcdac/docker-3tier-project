@@ -1,4 +1,4 @@
-name: Deploy 3-Tier App
+name: Deploy 3-Tier App.
 
 on:
   push:
